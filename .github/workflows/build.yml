@@ -24,19 +24,17 @@ jobs:
       
       - name: Create gradle.properties
         run: |
-          echo "org.gradle.jvmargs=-Xmx3072m -XX:MaxMetaspaceSize=512m" >> android/gradle.properties
-          echo "org.gradle.daemon=false" >> android/gradle.properties
-          echo "android.useAndroidX=true" >> android/gradle.properties
+          echo "org.gradle.jvmargs=-Xmx2048m" >> android/gradle.properties
           echo "android.enableJetifier=false" >> android/gradle.properties
       
       - name: Get dependencies
         run: flutter pub get
       
-      - name: Build APK for single ABI
-        run: flutter build apk --release --target-platform android-arm64 --no-tree-shake-icons
+      - name: Build Debug APK
+        run: flutter build apk --debug
       
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: face-attendance-apk
-          path: build/app/outputs/flutter-apk/app-release.apk
+          name: face-attendance-debug-apk
+          path: build/app/outputs/flutter-apk/app-debug.apk
