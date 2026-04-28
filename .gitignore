@@ -30,7 +30,10 @@ migrate_working_dir/
 .flutter-plugins-dependencies
 .pub-cache/
 .pub/
-/build/
+
+# ⚠️ DON'T ignore build folder completely - gradle wrapper needs it
+# /build/  ← COMMENTED OUT
+
 /coverage/
 
 # Symbolication related
@@ -43,3 +46,7 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# ✅ Keep gradle wrapper files (DO NOT ignore them)
+# android/gradlew
+# android/gradlew.bat
