@@ -39,13 +39,16 @@ jobs:
         run: flutter build apk --release
         continue-on-error: true
 
-      - name: Find APK
-        run: find . -name "*.apk" -type f 2>/dev/null || echo "No APK found"
+      - name: Find and Copy APK
+        run: |
+          find . -name "*.apk" -type f
+          mkdir -p output
+          find . -name "app-release.apk" -exec cp {} output/ \;
+          ls -la output/
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: face-attendance-apk
-          path: android/app/build/outputs/flutter-apk/app-release.apk
-          if-no-files-found: error
+          path: output/app-release.apk
           retention-days: 7
