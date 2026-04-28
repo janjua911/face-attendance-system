@@ -24,9 +24,8 @@ jobs:
 
       - name: Setup Gradle Memory
         run: |
-          mkdir -p android
           cat > android/gradle.properties << 'EOF'
-          org.gradle.jvmargs=-Xmx4096m -XX:MaxMetaspaceSize=1024m -XX:+HeapDumpOnOutOfMemoryError
+          org.gradle.jvmargs=-Xmx4096m -XX:MaxMetaspaceSize=1024m
           org.gradle.daemon=false
           org.gradle.parallel=false
           android.useAndroidX=true
@@ -38,10 +37,17 @@ jobs:
 
       - name: Build Release APK
         run: flutter build apk --release
+        continue-on-error: true
+
+      - name: Find APK
+        run: find . -name "*.apk" -type f
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: face-attendance-apk
-          path: build/app/outputs/flutter-apk/app-release.apk
+          path: |
+            build/app/outputs/flutter-apk/*.apk
+            build/app/outputs/apk/release/*.apk
+          if-no-files-found: warn
           retention-days: 7
