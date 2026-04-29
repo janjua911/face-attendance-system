@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class CreateCourseScreen extends StatefulWidget {
-  const CreateCourseScreen({super.key});
+  final Map<String, dynamic>? courseData;
+  final String? courseId;
+  
+  const CreateCourseScreen({super.key, this.courseData, this.courseId});
 
   @override
   State<CreateCourseScreen> createState() => _CreateCourseScreenState();
@@ -15,8 +18,8 @@ class _CreateCourseScreenState extends State<CreateCourseScreen> {
   String _selectedSemester = 'Fall 2026';
   int _creditHours = 3;
   bool _isLoading = false;
+  bool _isEditMode = false;
 
-  // Selected teacher
   String? _selectedTeacherId;
   String? _selectedTeacherName;
 
@@ -36,13 +39,39 @@ class _CreateCourseScreenState extends State<CreateCourseScreen> {
     'Fall 2027',
   ];
 
+  @override
+  void initState() {
+    super.initState();
+    _checkEditMode();
+  }
+
+  void _checkEditMode() {
+    if (widget.courseData != null && widget.courseId != null) {
+      _isEditMode = true;
+      _nameController.text = widget.courseData!['name'] ?? '';
+      _codeController.text = widget.courseData!['code'] ?? '';
+      _selectedDepartment = widget.courseData!['department'] ?? 'Computer Science';
+      _selectedSemester = widget.courseData!['semester'] ?? 'Fall 2026';
+      _creditHours = widget.courseData!['creditHours'] ?? 3;
+      _selectedTeacherId = widget.courseData!['teacherId'];
+      _selectedTeacherName = widget.courseData!['teacherName'];
+    }
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _codeController.dispose();
+    super.dispose();
+  }
+
   Future<void> _saveCourse() async {
     if (_nameController.text.isEmpty || _codeController.text.isEmpty) {
-      _showSnack('Course name aur code fill karo!', Colors.red);
+      _showSnack('Please fill course name and code!', Colors.red);
       return;
     }
     if (_selectedTeacherId == null) {
-      _showSnack('Pehle teacher select karo!', Colors.red);
+      _showSnack('Please select a teacher first!', Colors.red);
       return;
     }
 
@@ -50,27 +79,57 @@ class _CreateCourseScreenState extends State<CreateCourseScreen> {
 
     try {
       final db = FirebaseFirestore.instance;
-      final docRef = db.collection('courses').doc();
+      
+      if (_isEditMode && widget.courseId != null) {
+        final oldTeacherId = widget.courseData!['teacherId'];
+        
+        await db.collection('courses').doc(widget.courseId).update({
+          'name': _nameController.text.trim(),
+          'code': _codeController.text.trim().toUpperCase(),
+          'department': _selectedDepartment,
+          'teacherId': _selectedTeacherId,
+          'teacherName': _selectedTeacherName,
+          'creditHours': _creditHours,
+          'semester': _selectedSemester,
+          'updatedAt': Timestamp.now(),
+        });
+        
+        if (oldTeacherId != null && oldTeacherId != _selectedTeacherId) {
+          await db.collection('teachers').doc(oldTeacherId).update({
+            'assignedCourses': FieldValue.arrayRemove([widget.courseId]),
+          });
+        }
+        
+        if (_selectedTeacherId != oldTeacherId) {
+          await db.collection('teachers').doc(_selectedTeacherId).update({
+            'assignedCourses': FieldValue.arrayUnion([widget.courseId]),
+          });
+        }
+        
+        _showSnack('Course updated successfully! ✅', Colors.green);
+      } else {
+        final docRef = db.collection('courses').doc();
 
-      await docRef.set({
-        'courseId': docRef.id,
-        'name': _nameController.text.trim(),
-        'code': _codeController.text.trim().toUpperCase(),
-        'department': _selectedDepartment,
-        'teacherId': _selectedTeacherId,
-        'teacherName': _selectedTeacherName,
-        'creditHours': _creditHours,
-        'semester': _selectedSemester,
-        'createdAt': Timestamp.now(),
-      });
+        await docRef.set({
+          'courseId': docRef.id,
+          'name': _nameController.text.trim(),
+          'code': _codeController.text.trim().toUpperCase(),
+          'department': _selectedDepartment,
+          'teacherId': _selectedTeacherId,
+          'teacherName': _selectedTeacherName,
+          'creditHours': _creditHours,
+          'semester': _selectedSemester,
+          'createdAt': Timestamp.now(),
+        });
 
-      // Add course to teacher's assignedCourses
-      await db.collection('teachers').doc(_selectedTeacherId).update({
-        'assignedCourses': FieldValue.arrayUnion([docRef.id]),
-      });
+        await db.collection('teachers').doc(_selectedTeacherId).update({
+          'assignedCourses': FieldValue.arrayUnion([docRef.id]),
+        });
+        
+        _showSnack('Course created successfully! ✅', Colors.green);
+      }
 
       setState(() => _isLoading = false);
-      _showSnack('Course created successfully! ✅', Colors.green);
       await Future.delayed(const Duration(seconds: 1));
       if (mounted) Navigator.pop(context);
     } catch (e) {
@@ -82,156 +141,117 @@ class _CreateCourseScreenState extends State<CreateCourseScreen> {
   void _showSnack(String msg, Color color) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-          content: Text(msg),
-          backgroundColor: color,
-          duration: const Duration(seconds: 2)),
+        content: Row(
+          children: [
+            Icon(
+              color == Colors.green ? Icons.check_circle : Icons.error,
+              color: Colors.white,
+              size: 20,
+            ),
+            const SizedBox(width: 12),
+            Expanded(child: Text(msg)),
+          ],
+        ),
+        backgroundColor: color,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        duration: const Duration(seconds: 2),
+      ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF1A1A2E),
+      backgroundColor: const Color(0xFF0F0F1A),
       appBar: AppBar(
-        backgroundColor: Colors.orange,
+        title: Text(_isEditMode ? 'Edit Course' : 'Create New Course'),
+        backgroundColor: const Color(0xFFFFA726),
         foregroundColor: Colors.white,
-        title: const Text('Create New Course'),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.orange.withOpacity(0.15),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.orange.withOpacity(0.3)),
-              ),
-              child: const Row(
-                children: [
-                  Icon(Icons.book, color: Colors.orange, size: 32),
-                  SizedBox(width: 12),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Course Details',
-                          style: TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16)),
-                      Text('Fill course info and assign teacher',
-                          style: TextStyle(
-                              color: Colors.white38, fontSize: 12)),
-                    ],
-                  )
-                ],
-              ),
-            ),
-            const SizedBox(height: 24),
-
-            // Course Name
-            _buildField(_nameController, 'Course Name', Icons.book),
-            // Course Code
-            _buildField(_codeController, 'Course Code (e.g. CS301)',
-                Icons.code),
-
-            // Department
-            const SizedBox(height: 4),
-            _buildDropdown(
-              value: _selectedDepartment,
-              items: _departments,
-              icon: Icons.school,
-              onChanged: (val) =>
-                  setState(() => _selectedDepartment = val!),
-            ),
-            const SizedBox(height: 12),
-
-            // Semester
-            _buildDropdown(
-              value: _selectedSemester,
-              items: _semesters,
-              icon: Icons.calendar_today,
-              onChanged: (val) =>
-                  setState(() => _selectedSemester = val!),
-            ),
-            const SizedBox(height: 12),
-
-            // Credit Hours
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: const Color(0xFF16213E),
+                color: const Color(0xFFFFA726).withOpacity(0.15),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.timer, color: Colors.orange),
+                  Icon(Icons.book, color: const Color(0xFFFFA726), size: 32),
                   const SizedBox(width: 12),
-                  const Text('Credit Hours',
-                      style: TextStyle(color: Colors.white)),
-                  const Spacer(),
-                  IconButton(
-                    onPressed: () {
-                      if (_creditHours > 1)
-                        setState(() => _creditHours--);
-                    },
-                    icon: const Icon(Icons.remove_circle,
-                        color: Colors.orange),
-                  ),
-                  Text('$_creditHours',
-                      style: const TextStyle(
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _isEditMode ? 'Edit Course' : 'Course Details',
+                        style: const TextStyle(
                           color: Colors.white,
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold)),
-                  IconButton(
-                    onPressed: () {
-                      if (_creditHours < 6)
-                        setState(() => _creditHours++);
-                    },
-                    icon: const Icon(Icons.add_circle,
-                        color: Colors.orange),
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      ),
+                      Text(
+                        _isEditMode ? 'Update course information' : 'Fill course info and assign teacher',
+                        style: const TextStyle(color: Colors.white38, fontSize: 12),
+                      ),
+                    ],
                   ),
                 ],
               ),
             ),
-
             const SizedBox(height: 24),
-
-            // Assign Teacher Section
-            const Text('Assign Teacher',
-                style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold)),
+            _buildField(_nameController, 'Course Name', Icons.book),
+            _buildField(_codeController, 'Course Code (e.g., CS301)', Icons.code),
+            
+            _buildDropdown(
+              value: _selectedDepartment,
+              items: _departments,
+              icon: Icons.school,
+              label: 'Department',
+              onChanged: (val) => setState(() => _selectedDepartment = val!),
+            ),
             const SizedBox(height: 12),
-
-            // Teachers List from Firestore
+            
+            _buildDropdown(
+              value: _selectedSemester,
+              items: _semesters,
+              icon: Icons.calendar_today,
+              label: 'Semester',
+              onChanged: (val) => setState(() => _selectedSemester = val!),
+            ),
+            const SizedBox(height: 12),
+            
+            _buildCreditHoursSelector(),
+            const SizedBox(height: 24),
+            
+            const Text(
+              'Assign Teacher',
+              style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 12),
+            
             StreamBuilder<QuerySnapshot>(
-              stream: FirebaseFirestore.instance
-                  .collection('teachers')
-                  .snapshots(),
+              stream: FirebaseFirestore.instance.collection('teachers').snapshots(),
               builder: (context, snapshot) {
-                if (snapshot.connectionState ==
-                    ConnectionState.waiting) {
-                  return const Center(
-                      child: CircularProgressIndicator(
-                          color: Colors.orange));
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator(color: Color(0xFFFFA726)));
                 }
 
-                if (!snapshot.hasData ||
-                    snapshot.data!.docs.isEmpty) {
+                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
                   return Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF16213E),
+                      color: const Color(0xFF1A1A2E),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: const Text(
-                      'Koi teacher registered nahi hai!\nPehle teacher add karo.',
+                      'No teachers registered!\nPlease add a teacher first.',
                       style: TextStyle(color: Colors.white38),
                       textAlign: TextAlign.center,
                     ),
@@ -241,8 +261,7 @@ class _CreateCourseScreenState extends State<CreateCourseScreen> {
                 return Column(
                   children: snapshot.data!.docs.map((doc) {
                     final data = doc.data() as Map<String, dynamic>;
-                    final isSelected =
-                        _selectedTeacherId == data['uid'];
+                    final isSelected = _selectedTeacherId == data['uid'];
 
                     return GestureDetector(
                       onTap: () => setState(() {
@@ -254,46 +273,40 @@ class _CreateCourseScreenState extends State<CreateCourseScreen> {
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
                           color: isSelected
-                              ? Colors.orange.withOpacity(0.2)
-                              : const Color(0xFF16213E),
+                              ? const Color(0xFFFFA726).withOpacity(0.2)
+                              : const Color(0xFF1A1A2E),
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(
-                            color: isSelected
-                                ? Colors.orange
-                                : Colors.transparent,
+                            color: isSelected ? const Color(0xFFFFA726) : Colors.transparent,
                           ),
                         ),
                         child: Row(
                           children: [
                             CircleAvatar(
-                              backgroundColor:
-                                  Colors.orange.withOpacity(0.2),
+                              backgroundColor: const Color(0xFFFFA726).withOpacity(0.2),
                               child: Text(
                                 data['name'][0].toUpperCase(),
-                                style: const TextStyle(
-                                    color: Colors.orange),
+                                style: const TextStyle(color: Color(0xFFFFA726)),
                               ),
                             ),
                             const SizedBox(width: 12),
-                            Column(
-                              crossAxisAlignment:
-                                  CrossAxisAlignment.start,
-                              children: [
-                                Text(data['name'],
-                                    style: const TextStyle(
-                                        color: Colors.white,
-                                        fontWeight:
-                                            FontWeight.bold)),
-                                Text(data['department'],
-                                    style: const TextStyle(
-                                        color: Colors.white38,
-                                        fontSize: 12)),
-                              ],
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    data['name'],
+                                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                                  ),
+                                  Text(
+                                    data['department'],
+                                    style: const TextStyle(color: Colors.white38, fontSize: 12),
+                                  ),
+                                ],
+                              ),
                             ),
-                            const Spacer(),
                             if (isSelected)
-                              const Icon(Icons.check_circle,
-                                  color: Colors.orange),
+                              const Icon(Icons.check_circle, color: Color(0xFFFFA726)),
                           ],
                         ),
                       ),
@@ -302,28 +315,24 @@ class _CreateCourseScreenState extends State<CreateCourseScreen> {
                 );
               },
             ),
-
+            
             const SizedBox(height: 24),
-
-            // Save Button
+            
             SizedBox(
               width: double.infinity,
               height: 52,
               child: ElevatedButton(
                 onPressed: _isLoading ? null : _saveCourse,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.orange,
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12)),
+                  backgroundColor: const Color(0xFFFFA726),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
                 child: _isLoading
-                    ? const CircularProgressIndicator(
-                        color: Colors.white)
-                    : const Text('Create Course',
-                        style: TextStyle(
-                            fontSize: 16,
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold)),
+                    ? const CircularProgressIndicator(color: Colors.white)
+                    : Text(
+                        _isEditMode ? 'Update Course' : 'Create Course',
+                        style: const TextStyle(fontSize: 16, color: Colors.white, fontWeight: FontWeight.bold),
+                      ),
               ),
             ),
             const SizedBox(height: 30),
@@ -333,8 +342,7 @@ class _CreateCourseScreenState extends State<CreateCourseScreen> {
     );
   }
 
-  Widget _buildField(
-      TextEditingController controller, String hint, IconData icon) {
+  Widget _buildField(TextEditingController controller, String hint, IconData icon) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: TextField(
@@ -343,9 +351,9 @@ class _CreateCourseScreenState extends State<CreateCourseScreen> {
         decoration: InputDecoration(
           hintText: hint,
           hintStyle: const TextStyle(color: Colors.white38),
-          prefixIcon: Icon(icon, color: Colors.orange),
+          prefixIcon: Icon(icon, color: const Color(0xFFFFA726)),
           filled: true,
-          fillColor: const Color(0xFF16213E),
+          fillColor: const Color(0xFF1A1A2E),
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
             borderSide: BorderSide.none,
@@ -359,37 +367,82 @@ class _CreateCourseScreenState extends State<CreateCourseScreen> {
     required String value,
     required List<String> items,
     required IconData icon,
+    required String label,
     required Function(String?) onChanged,
   }) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      decoration: BoxDecoration(
-        color: const Color(0xFF16213E),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        children: [
-          Icon(icon, color: Colors.orange),
-          const SizedBox(width: 8),
-          Expanded(
-            child: DropdownButtonHideUnderline(
-              child: DropdownButton<String>(
-                value: value,
-                dropdownColor: const Color(0xFF16213E),
-                style: const TextStyle(color: Colors.white),
-                icon: const Icon(Icons.arrow_drop_down,
-                    color: Colors.orange),
-                isExpanded: true,
-                items: items
-                    .map((d) =>
-                        DropdownMenuItem(value: d, child: Text(d)))
-                    .toList(),
-                onChanged: onChanged,
-              ),
-            ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: const TextStyle(color: Colors.white54, fontSize: 12)),
+        const SizedBox(height: 6),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          decoration: BoxDecoration(
+            color: const Color(0xFF1A1A2E),
+            borderRadius: BorderRadius.circular(12),
           ),
-        ],
-      ),
+          child: Row(
+            children: [
+              Icon(icon, color: const Color(0xFFFFA726)),
+              const SizedBox(width: 8),
+              Expanded(
+                child: DropdownButtonHideUnderline(
+                  child: DropdownButton<String>(
+                    value: value,
+                    dropdownColor: const Color(0xFF1A1A2E),
+                    style: const TextStyle(color: Colors.white),
+                    icon: const Icon(Icons.arrow_drop_down, color: Color(0xFFFFA726)),
+                    isExpanded: true,
+                    items: items.map((item) => DropdownMenuItem(value: item, child: Text(item))).toList(),
+                    onChanged: onChanged,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCreditHoursSelector() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('Credit Hours', style: TextStyle(color: Colors.white54, fontSize: 12)),
+        const SizedBox(height: 6),
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: const Color(0xFF1A1A2E),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Row(
+            children: [
+              const Icon(Icons.timer, color: Color(0xFFFFA726)),
+              const SizedBox(width: 12),
+              const Text('Credit Hours', style: TextStyle(color: Colors.white)),
+              const Spacer(),
+              IconButton(
+                onPressed: () {
+                  if (_creditHours > 1) setState(() => _creditHours--);
+                },
+                icon: const Icon(Icons.remove_circle, color: Color(0xFFFFA726)),
+              ),
+              Text(
+                '$_creditHours',
+                style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              IconButton(
+                onPressed: () {
+                  if (_creditHours < 6) setState(() => _creditHours++);
+                },
+                icon: const Icon(Icons.add_circle, color: Color(0xFFFFA726)),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

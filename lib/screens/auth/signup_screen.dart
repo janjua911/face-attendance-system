@@ -7,6 +7,45 @@ import '../../services/cloudinary_service.dart';
 import 'login_screen.dart';
 import '../../services/embedding_service.dart';
 
+class AppTheme {
+  static const Color primaryPurple = Color(0xFF6C63FF);
+  static const Color primaryDark = Color(0xFF3F3D9E);
+  static const Color accentCyan = Color(0xFF00B4D8);
+  static const Color accentLight = Color(0xFF90E0EF);
+  
+  static const Color backgroundDark = Color(0xFF0F0F1A);
+  static const Color surfaceDark = Color(0xFF1A1A2E);
+  static const Color surfaceLight = Color(0xFF252542);
+  
+  static const Color textPrimary = Colors.white;
+  static const Color textSecondary = Color(0xFFB0B0C8);
+  static const Color textHint = Color(0xFF6B6B8D);
+  
+  static const Color success = Color(0xFF4CAF50);
+  static const Color error = Color(0xFFFF4444);
+  static const Color warning = Color(0xFFFFA726);
+  
+  static const LinearGradient primaryGradient = LinearGradient(
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    colors: [primaryPurple, primaryDark],
+  );
+  
+  static const LinearGradient cardGradient = LinearGradient(
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    colors: [surfaceDark, Color(0xFF1E1E35)],
+  );
+  
+  static List<BoxShadow> get defaultShadow => [
+    BoxShadow(
+      color: Colors.black.withOpacity(0.3),
+      blurRadius: 20,
+      offset: const Offset(0, 8),
+    ),
+  ];
+}
+
 class SignUpScreen extends StatefulWidget {
   const SignUpScreen({super.key});
 
@@ -16,9 +55,7 @@ class SignUpScreen extends StatefulWidget {
 
 class _SignUpScreenState extends State<SignUpScreen> {
   String _selectedRole = 'student';
-  int _currentStep = 0; // 0=role, 1=info, 2=photos(student only)
 
-  // Controllers
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
@@ -27,7 +64,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
   final _employeeIdController = TextEditingController();
   String _selectedDepartment = 'Computer Science';
   String _passwordStrength = '';
-  Color _passwordColor = Colors.transparent;
+  Color _passwordColor = AppTheme.success;
+  bool _obscurePassword = true;
 
   final List<Uint8List> _photos = [];
   bool _isLoading = false;
@@ -50,26 +88,24 @@ class _SignUpScreenState extends State<SignUpScreen> {
     }
     if (password.length < 6) {
       setState(() {
-        _passwordStrength = 'Weak — 6+ characters chahiye';
-        _passwordColor = Colors.red;
+        _passwordStrength = 'Weak — minimum 6 characters required';
+        _passwordColor = AppTheme.error;
       });
-    } else if (password.length < 10 ||
-        !password.contains(RegExp(r'[0-9]'))) {
+    } else if (password.length < 10 || !password.contains(RegExp(r'[0-9]'))) {
       setState(() {
-        _passwordStrength = 'Medium — number bhi add karo';
-        _passwordColor = Colors.orange;
+        _passwordStrength = 'Medium — add a number for strength';
+        _passwordColor = AppTheme.warning;
       });
     } else {
       setState(() {
-        _passwordStrength = 'Strong ✅';
-        _passwordColor = Colors.green;
+        _passwordStrength = 'Strong password';
+        _passwordColor = AppTheme.success;
       });
     }
   }
 
   Future<void> _pickMultiplePhotos() async {
-    final List<XFile> images = await _picker.pickMultiImage(
-        imageQuality: 85);
+    final List<XFile> images = await _picker.pickMultiImage(imageQuality: 85);
     if (images.isEmpty) return;
     int canAdd = 20 - _photos.length;
     final toAdd = images.take(canAdd).toList();
@@ -77,52 +113,190 @@ class _SignUpScreenState extends State<SignUpScreen> {
       final bytes = await img.readAsBytes();
       setState(() => _photos.add(bytes));
     }
-    _showSnack('${toAdd.length} photos added!', Colors.green);
+    _showSnack('${toAdd.length} photos added!', AppTheme.success);
+  }
+
+  Future<void> _pickFromCamera() async {
+    if (_photos.length >= 20) {
+      _showSnack('Maximum 20 photos already added!', AppTheme.warning);
+      return;
+    }
+    final XFile? image = await _picker.pickImage(
+      source: ImageSource.camera,
+      imageQuality: 85,
+    );
+    if (image != null) {
+      final bytes = await image.readAsBytes();
+      setState(() => _photos.add(bytes));
+    }
+  }
+
+  void _showPhotoOptions() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppTheme.surfaceDark,
+      shape: RoundedRectangleBorder(
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(25)),
+      ),
+      builder: (ctx) => Container(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: AppTheme.textHint,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              'Add Face Photos',
+              style: TextStyle(
+                color: AppTheme.textPrimary,
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Upload clear photos from different angles',
+              style: TextStyle(color: AppTheme.textHint, fontSize: 14),
+            ),
+            const SizedBox(height: 24),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                _buildPhotoOption(
+                  icon: Icons.camera_alt,
+                  label: 'Camera',
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _pickFromCamera();
+                  },
+                  color: AppTheme.accentCyan,
+                ),
+                _buildPhotoOption(
+                  icon: Icons.photo_library,
+                  label: 'Gallery',
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _picker.pickImage(
+                      source: ImageSource.gallery,
+                      imageQuality: 85,
+                    ).then((img) async {
+                      if (img != null) {
+                        final bytes = await img.readAsBytes();
+                        setState(() => _photos.add(bytes));
+                      }
+                    });
+                  },
+                  color: AppTheme.primaryPurple,
+                ),
+                _buildPhotoOption(
+                  icon: Icons.photo_album,
+                  label: 'Multiple',
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _pickMultiplePhotos();
+                  },
+                  color: AppTheme.warning,
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPhotoOption({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+    required Color color,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [color.withOpacity(0.3), color.withOpacity(0.1)],
+              ),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: color.withOpacity(0.5), width: 1),
+            ),
+            child: Icon(icon, color: color, size: 32),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            label,
+            style: const TextStyle(color: AppTheme.textSecondary, fontSize: 12),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _register() async {
-    // Validations
     if (_nameController.text.isEmpty ||
         _emailController.text.isEmpty ||
         _passwordController.text.isEmpty) {
-      _showSnack('Sab fields fill karo!', Colors.red);
+      _showSnack('Please fill all fields!', AppTheme.error);
       return;
     }
     if (_passwordController.text.length < 6) {
-      _showSnack('Password kam az kam 6 characters!', Colors.red);
+      _showSnack('Password must be at least 6 characters!', AppTheme.error);
       return;
     }
     if (_selectedRole == 'student') {
-      if (_rollNoController.text.isEmpty ||
-          _cnicController.text.isEmpty) {
-        _showSnack('Roll No aur CNIC fill karo!', Colors.red);
+      if (_rollNoController.text.isEmpty || _cnicController.text.isEmpty) {
+        _showSnack('Roll Number and CNIC are required!', AppTheme.error);
         return;
       }
       if (_cnicController.text.length != 13) {
-        _showSnack('CNIC exactly 13 digits!', Colors.red);
+        _showSnack('CNIC must be exactly 13 digits!', AppTheme.error);
         return;
       }
       if (_photos.length < 5) {
-        _showSnack('Kam az kam 5 photos add karo!', Colors.red);
+        _showSnack('Please add at least 5 face photos!', AppTheme.error);
         return;
       }
     }
-    if (_selectedRole == 'teacher' &&
-        _employeeIdController.text.isEmpty) {
-      _showSnack('Employee ID fill karo!', Colors.red);
+    if (_selectedRole == 'teacher' && _employeeIdController.text.isEmpty) {
+      _showSnack('Employee ID is required!', AppTheme.error);
       return;
     }
 
     setState(() => _isLoading = true);
 
     try {
-      // Upload photos if student
+      final existingUser = await FirebaseFirestore.instance
+          .collection('users')
+          .where('email', isEqualTo: _emailController.text.trim())
+          .get();
+
+      if (existingUser.docs.isNotEmpty) {
+        setState(() => _isLoading = false);
+        _showSnack('This email is already registered!', AppTheme.error);
+        return;
+      }
+
       List<String> photoUrls = [];
       if (_selectedRole == 'student') {
         for (int i = 0; i < _photos.length; i++) {
           _showSnack(
-              'Uploading photo ${i + 1}/${_photos.length}...',
-              Colors.blue);
+            'Uploading photo ${i + 1}/${_photos.length}...',
+            AppTheme.primaryPurple,
+          );
           String? url = await _cloudinary.uploadImage(
             _photos[i],
             '${_rollNoController.text}_photo_$i.jpg',
@@ -131,28 +305,24 @@ class _SignUpScreenState extends State<SignUpScreen> {
         }
       }
 
-      // Firebase Auth account
       UserCredential cred = await FirebaseAuth.instance
           .createUserWithEmailAndPassword(
-        email: _emailController.text.trim(),
-        password: _passwordController.text.trim(),
-      );
+            email: _emailController.text.trim(),
+            password: _passwordController.text.trim(),
+          );
       String uid = cred.user!.uid;
       final db = FirebaseFirestore.instance;
 
-      // Users collection
       await db.collection('users').doc(uid).set({
         'uid': uid,
         'name': _nameController.text.trim(),
         'email': _emailController.text.trim(),
         'role': _selectedRole,
         'department': _selectedDepartment,
-        if (_selectedRole == 'student')
-          'rollNo': _rollNoController.text.trim(),
+        if (_selectedRole == 'student') 'rollNo': _rollNoController.text.trim(),
         'createdAt': Timestamp.now(),
       });
 
-      // Role specific collection
       if (_selectedRole == 'student') {
         await db.collection('students').doc(uid).set({
           'uid': uid,
@@ -163,7 +333,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
           'email': _emailController.text.trim(),
           'photoUrls': photoUrls,
           'faceEmbedding': [],
-          'embeddingStatus': 'pending', // ← Step 3 ke liye
+          'embeddingStatus': 'pending',
+          'validPhotos': 0,
           'createdAt': Timestamp.now(),
         });
       } else {
@@ -178,32 +349,25 @@ class _SignUpScreenState extends State<SignUpScreen> {
         });
       }
 
-      // ✅ NEW: Student register hone ke baad — embedding generate karo
       if (_selectedRole == 'student' && photoUrls.isNotEmpty) {
-        _showSnack('🧠 Generating face embedding...', Colors.purple);
+        _showSnack('Generating face embedding...', AppTheme.primaryPurple);
         
         final embeddingService = EmbeddingService();
         final embResult = await embeddingService.generateAndSaveEmbedding(
           studentUid: uid,
           photoUrls: photoUrls,
-          onProgress: (msg) => _showSnack(msg, Colors.purple),
+          onProgress: (msg) => _showSnack(msg, AppTheme.primaryPurple),
         );
 
         if (embResult['success']) {
-          _showSnack(
-            '✅ Registration complete! Embedding ready.',
-            Colors.green,
-          );
+          _showSnack('Registration complete! Embedding ready.', AppTheme.success);
         } else {
-          _showSnack(
-            '⚠️ Registered! Face embedding pending — contact admin.',
-            Colors.orange,
-          );
+          _showSnack('Registered! Face embedding pending — contact admin.', AppTheme.warning);
         }
       }
 
       setState(() => _isLoading = false);
-      _showSnack('Registration successful! ✅', Colors.green);
+      _showSnack('Registration successful!', AppTheme.success);
       await Future.delayed(const Duration(seconds: 1));
 
       if (mounted) {
@@ -212,326 +376,56 @@ class _SignUpScreenState extends State<SignUpScreen> {
       }
     } catch (e) {
       setState(() => _isLoading = false);
-      _showSnack('Error: ${e.toString()}', Colors.red);
+      _showSnack('Error: ${e.toString()}', AppTheme.error);
     }
   }
 
   void _showSnack(String msg, Color color) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-          content: Text(msg),
-          backgroundColor: color,
-          duration: const Duration(seconds: 2)),
+        content: Row(
+          children: [
+            Icon(
+              color == AppTheme.success ? Icons.check_circle : 
+              color == AppTheme.error ? Icons.error : 
+              Icons.info,
+              color: Colors.white,
+              size: 20,
+            ),
+            const SizedBox(width: 12),
+            Expanded(child: Text(msg)),
+          ],
+        ),
+        backgroundColor: color,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        duration: const Duration(seconds: 2),
+      ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF1A1A2E),
-      appBar: AppBar(
-        backgroundColor: const Color(0xFF1A1A2E),
-        foregroundColor: Colors.white,
-        title: const Text('Create Account'),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.pop(context),
-        ),
-      ),
+      backgroundColor: AppTheme.backgroundDark,
+      appBar: _buildGradientAppBar(),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Colors.indigo, Colors.indigoAccent],
-                ),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: const Column(
-                children: [
-                  Icon(Icons.person_add, color: Colors.white, size: 40),
-                  SizedBox(height: 8),
-                  Text('Sign Up',
-                      style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 22,
-                          fontWeight: FontWeight.bold)),
-                  Text('Create your university account',
-                      style: TextStyle(
-                          color: Colors.white70, fontSize: 13)),
-                ],
-              ),
-            ),
-
+            _buildHeaderCard(),
             const SizedBox(height: 24),
-
-            // Role Selection
-            const Text('I am a...',
-                style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold)),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: _RoleCard(
-                    icon: Icons.school,
-                    label: 'Student',
-                    isSelected: _selectedRole == 'student',
-                    color: Colors.orange,
-                    onTap: () =>
-                        setState(() => _selectedRole = 'student'),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _RoleCard(
-                    icon: Icons.person,
-                    label: 'Teacher',
-                    isSelected: _selectedRole == 'teacher',
-                    color: Colors.teal,
-                    onTap: () =>
-                        setState(() => _selectedRole = 'teacher'),
-                  ),
-                ),
-              ],
-            ),
-
+            _buildRoleSelection(),
             const SizedBox(height: 24),
-
-            // Common Fields
-            const Text('Personal Information',
-                style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold)),
-            const SizedBox(height: 12),
-
-            _buildField(_nameController, 'Full Name', Icons.person),
-            _buildField(_emailController, 'Email', Icons.email,
-                keyboardType: TextInputType.emailAddress),
-
-            // Password with strength
-            TextField(
-              controller: _passwordController,
-              obscureText: true,
-              style: const TextStyle(color: Colors.white),
-              onChanged: _checkPasswordStrength,
-              decoration: InputDecoration(
-                hintText: 'Password',
-                hintStyle: const TextStyle(color: Colors.white38),
-                prefixIcon:
-                    const Icon(Icons.lock, color: Colors.indigo),
-                filled: true,
-                fillColor: const Color(0xFF16213E),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide.none,
-                ),
-              ),
-            ),
-            if (_passwordStrength.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.only(left: 12, top: 4, bottom: 8),
-                child: Text(_passwordStrength,
-                    style: TextStyle(
-                        color: _passwordColor, fontSize: 12)),
-              )
-            else
-              const SizedBox(height: 12),
-
-            // Department
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              decoration: BoxDecoration(
-                color: const Color(0xFF16213E),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: DropdownButtonHideUnderline(
-                child: DropdownButton<String>(
-                  value: _selectedDepartment,
-                  dropdownColor: const Color(0xFF16213E),
-                  style: const TextStyle(color: Colors.white),
-                  icon: const Icon(Icons.arrow_drop_down,
-                      color: Colors.indigo),
-                  isExpanded: true,
-                  items: _departments
-                      .map((d) =>
-                          DropdownMenuItem(value: d, child: Text(d)))
-                      .toList(),
-                  onChanged: (val) =>
-                      setState(() => _selectedDepartment = val!),
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 12),
-
-            // Student specific fields
-            if (_selectedRole == 'student') ...[
-              const SizedBox(height: 8),
-              const Text('Student Details',
-                  style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold)),
-              const SizedBox(height: 12),
-              _buildField(
-                  _rollNoController, 'Roll Number', Icons.badge),
-              TextField(
-                controller: _cnicController,
-                keyboardType: TextInputType.number,
-                maxLength: 13,
-                style: const TextStyle(color: Colors.white),
-                decoration: InputDecoration(
-                  hintText: 'CNIC (13 digits)',
-                  hintStyle: const TextStyle(color: Colors.white38),
-                  prefixIcon: const Icon(Icons.credit_card,
-                      color: Colors.indigo),
-                  counterStyle:
-                      const TextStyle(color: Colors.white38),
-                  filled: true,
-                  fillColor: const Color(0xFF16213E),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide.none,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 8),
-
-              // Face Photos
-              const Text('Face Photos',
-                  style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold)),
-              const SizedBox(height: 4),
-              Text(
-                '${_photos.length}/20 photos — Add 10-20 clear face photos',
-                style: const TextStyle(
-                    color: Colors.white38, fontSize: 12),
-              ),
-              const SizedBox(height: 12),
-
-              if (_photos.isNotEmpty)
-                GridView.builder(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  gridDelegate:
-                      const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 4,
-                    crossAxisSpacing: 8,
-                    mainAxisSpacing: 8,
-                  ),
-                  itemCount: _photos.length,
-                  itemBuilder: (ctx, i) => Stack(
-                    children: [
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
-                        child: Image.memory(_photos[i],
-                            fit: BoxFit.cover,
-                            width: double.infinity,
-                            height: double.infinity),
-                      ),
-                      Positioned(
-                        top: 2,
-                        right: 2,
-                        child: GestureDetector(
-                          onTap: () =>
-                              setState(() => _photos.removeAt(i)),
-                          child: Container(
-                            decoration: const BoxDecoration(
-                              color: Colors.red,
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Icon(Icons.close,
-                                size: 16, color: Colors.white),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              const SizedBox(height: 8),
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  onPressed: _pickMultiplePhotos,
-                  icon: const Icon(Icons.add_a_photo,
-                      color: Colors.indigo),
-                  label: const Text('Add Face Photos',
-                      style: TextStyle(color: Colors.indigo)),
-                  style: OutlinedButton.styleFrom(
-                    side: const BorderSide(color: Colors.indigo),
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12)),
-                  ),
-                ),
-              ),
-            ],
-
-            // Teacher specific
-            if (_selectedRole == 'teacher') ...[
-              const SizedBox(height: 8),
-              const Text('Teacher Details',
-                  style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold)),
-              const SizedBox(height: 12),
-              _buildField(_employeeIdController, 'Employee ID',
-                  Icons.badge),
-            ],
-
+            _buildPersonalInfoSection(),
             const SizedBox(height: 24),
-
-            // Register Button
-            SizedBox(
-              width: double.infinity,
-              height: 52,
-              child: ElevatedButton(
-                onPressed: _isLoading ? null : _register,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.indigo,
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12)),
-                ),
-                child: _isLoading
-                    ? const CircularProgressIndicator(
-                        color: Colors.white)
-                    : const Text('Create Account',
-                        style: TextStyle(
-                            fontSize: 18,
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold)),
-              ),
-            ),
+            if (_selectedRole == 'student') _buildStudentSection(),
+            if (_selectedRole == 'teacher') _buildTeacherSection(),
+            const SizedBox(height: 24),
+            _buildRegisterButton(),
             const SizedBox(height: 16),
-
-            // Already have account
-            Center(
-              child: GestureDetector(
-                onTap: () => Navigator.pushReplacement(
-                    context,
-                    MaterialPageRoute(
-                        builder: (_) => const LoginScreen())),
-                child: const Text(
-                  'Already have an account? Login',
-                  style: TextStyle(
-                      color: Colors.indigo,
-                      fontWeight: FontWeight.bold),
-                ),
-              ),
-            ),
+            _buildLoginLink(),
             const SizedBox(height: 30),
           ],
         ),
@@ -539,27 +433,595 @@ class _SignUpScreenState extends State<SignUpScreen> {
     );
   }
 
-  Widget _buildField(
+  PreferredSizeWidget _buildGradientAppBar() {
+    return AppBar(
+      title: const Text(
+        'Create Account',
+        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 22),
+      ),
+      centerTitle: true,
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      foregroundColor: AppTheme.textPrimary,
+      leading: IconButton(
+        icon: const Icon(Icons.arrow_back_ios_new),
+        onPressed: () => Navigator.pop(context),
+      ),
+      flexibleSpace: Container(
+        decoration: const BoxDecoration(
+          gradient: AppTheme.primaryGradient,
+          borderRadius: BorderRadius.only(
+            bottomLeft: Radius.circular(24),
+            bottomRight: Radius.circular(24),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHeaderCard() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: AppTheme.cardGradient,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: AppTheme.defaultShadow,
+      ),
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              gradient: AppTheme.primaryGradient,
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Image.asset(
+              'assets/app_icon.png',
+              width: 60,
+              height: 60,
+              fit: BoxFit.contain,
+              errorBuilder: (context, error, stackTrace) {
+                return const Icon(Icons.person_add, color: Colors.white, size: 50);
+              },
+            ),
+          ),
+          const SizedBox(height: 12),
+          const Text(
+            'Create Your Account',
+            style: TextStyle(
+              color: AppTheme.textPrimary,
+              fontSize: 22,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            'Join the university smart attendance system',
+            style: TextStyle(color: AppTheme.textHint, fontSize: 13),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRoleSelection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [AppTheme.primaryPurple, AppTheme.accentCyan],
+                ),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(Icons.person_outline, color: Colors.white, size: 14),
+            ),
+            const SizedBox(width: 10),
+            const Text(
+              'I am a...',
+              style: TextStyle(
+                color: AppTheme.textPrimary,
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: _RoleCard(
+                icon: Icons.school,
+                label: 'Student',
+                isSelected: _selectedRole == 'student',
+                color: AppTheme.warning,
+                onTap: () => setState(() => _selectedRole = 'student'),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _RoleCard(
+                icon: Icons.person,
+                label: 'Teacher',
+                isSelected: _selectedRole == 'teacher',
+                color: const Color(0xFF26A69A),
+                onTap: () => setState(() => _selectedRole = 'teacher'),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPersonalInfoSection() {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: AppTheme.cardGradient,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: AppTheme.defaultShadow,
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [AppTheme.primaryPurple, AppTheme.accentCyan],
+                    ),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(Icons.info_outline, color: Colors.white, size: 14),
+                ),
+                const SizedBox(width: 10),
+                const Text(
+                  'Personal Information',
+                  style: TextStyle(
+                    color: AppTheme.textPrimary,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            _buildTextField(_nameController, 'Full Name', Icons.person),
+            _buildTextField(_emailController, 'Email Address', Icons.email,
+                keyboardType: TextInputType.emailAddress),
+            _buildPasswordField(),
+            _buildDepartmentDropdown(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTextField(
     TextEditingController controller,
     String hint,
     IconData icon, {
     TextInputType keyboardType = TextInputType.text,
+    int? maxLength,
   }) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.only(bottom: 16),
       child: TextField(
         controller: controller,
         keyboardType: keyboardType,
-        style: const TextStyle(color: Colors.white),
+        maxLength: maxLength,
+        style: const TextStyle(color: AppTheme.textPrimary),
         decoration: InputDecoration(
           hintText: hint,
-          hintStyle: const TextStyle(color: Colors.white38),
-          prefixIcon: Icon(icon, color: Colors.indigo),
+          hintStyle: const TextStyle(color: AppTheme.textHint),
+          prefixIcon: Icon(icon, color: AppTheme.primaryPurple, size: 22),
+          counterText: maxLength != null ? null : '',
           filled: true,
-          fillColor: const Color(0xFF16213E),
+          fillColor: AppTheme.surfaceLight,
           border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(16),
             borderSide: BorderSide.none,
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: BorderSide(color: AppTheme.primaryPurple.withOpacity(0.2)),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: const BorderSide(color: AppTheme.primaryPurple, width: 1.5),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPasswordField() {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          TextField(
+            controller: _passwordController,
+            obscureText: _obscurePassword,
+            style: const TextStyle(color: AppTheme.textPrimary),
+            onChanged: _checkPasswordStrength,
+            decoration: InputDecoration(
+              hintText: 'Password',
+              hintStyle: const TextStyle(color: AppTheme.textHint),
+              prefixIcon: const Icon(Icons.lock_outline, color: AppTheme.primaryPurple, size: 22),
+              suffixIcon: IconButton(
+                icon: Icon(
+                  _obscurePassword ? Icons.visibility_off : Icons.visibility,
+                  color: AppTheme.textHint,
+                ),
+                onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+              ),
+              filled: true,
+              fillColor: AppTheme.surfaceLight,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+                borderSide: BorderSide.none,
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+                borderSide: BorderSide(color: AppTheme.primaryPurple.withOpacity(0.2)),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+                borderSide: const BorderSide(color: AppTheme.primaryPurple, width: 1.5),
+              ),
+            ),
+          ),
+          if (_passwordStrength.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(left: 12, top: 8),
+              child: Row(
+                children: [
+                  Icon(
+                    _passwordColor == AppTheme.success ? Icons.check_circle : Icons.warning,
+                    color: _passwordColor,
+                    size: 14,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    _passwordStrength,
+                    style: TextStyle(color: _passwordColor, fontSize: 12),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDepartmentDropdown() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Department',
+          style: TextStyle(color: AppTheme.textSecondary, fontSize: 13, fontWeight: FontWeight.w500),
+        ),
+        const SizedBox(height: 8),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          decoration: BoxDecoration(
+            color: AppTheme.surfaceLight,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppTheme.primaryPurple.withOpacity(0.3)),
+          ),
+          child: DropdownButtonHideUnderline(
+            child: DropdownButton<String>(
+              value: _selectedDepartment,
+              dropdownColor: AppTheme.surfaceDark,
+              style: const TextStyle(color: AppTheme.textPrimary, fontSize: 15),
+              icon: const Icon(Icons.arrow_drop_down, color: AppTheme.primaryPurple),
+              isExpanded: true,
+              items: _departments.map((d) => DropdownMenuItem(
+                value: d,
+                child: Row(
+                  children: [
+                    const Icon(Icons.school, size: 18, color: AppTheme.primaryPurple),
+                    const SizedBox(width: 12),
+                    Text(d),
+                  ],
+                ),
+              )).toList(),
+              onChanged: (val) => setState(() => _selectedDepartment = val!),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStudentSection() {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: AppTheme.cardGradient,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: AppTheme.defaultShadow,
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [AppTheme.warning, Color(0xFFFFB74D)],
+                    ),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(Icons.school, color: Colors.white, size: 14),
+                ),
+                const SizedBox(width: 10),
+                const Text(
+                  'Student Details',
+                  style: TextStyle(
+                    color: AppTheme.textPrimary,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            _buildTextField(_rollNoController, 'Roll Number', Icons.numbers),
+            _buildCNICField(),
+            const SizedBox(height: 8),
+            _buildPhotoSection(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCNICField() {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: TextField(
+        controller: _cnicController,
+        keyboardType: TextInputType.number,
+        maxLength: 13,
+        style: const TextStyle(color: AppTheme.textPrimary),
+        decoration: InputDecoration(
+          hintText: 'CNIC (13 digits, no dashes)',
+          hintStyle: const TextStyle(color: AppTheme.textHint),
+          prefixIcon: const Icon(Icons.credit_card, color: AppTheme.primaryPurple, size: 22),
+          counterStyle: const TextStyle(color: AppTheme.textHint),
+          filled: true,
+          fillColor: AppTheme.surfaceLight,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: BorderSide.none,
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: BorderSide(color: AppTheme.primaryPurple.withOpacity(0.2)),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: const BorderSide(color: AppTheme.primaryPurple, width: 1.5),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPhotoSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Icon(Icons.photo_camera, size: 16, color: AppTheme.warning),
+            const SizedBox(width: 8),
+            Text(
+              'Face Photos (${_photos.length}/20)',
+              style: const TextStyle(
+                color: AppTheme.textPrimary,
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        const Text(
+          'Add 10-20 clear face photos from different angles',
+          style: TextStyle(color: AppTheme.textHint, fontSize: 12),
+        ),
+        const SizedBox(height: 12),
+        if (_photos.isNotEmpty)
+          GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 3,
+              crossAxisSpacing: 10,
+              mainAxisSpacing: 10,
+              childAspectRatio: 0.9,
+            ),
+            itemCount: _photos.length,
+            itemBuilder: (ctx, i) => Stack(
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: Image.memory(_photos[i],
+                      fit: BoxFit.cover,
+                      width: double.infinity,
+                      height: double.infinity),
+                ),
+                Positioned(
+                  top: 6,
+                  right: 6,
+                  child: GestureDetector(
+                    onTap: () => setState(() => _photos.removeAt(i)),
+                    child: Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: const BoxDecoration(
+                        color: AppTheme.error,
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.close, size: 12, color: Colors.white),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        const SizedBox(height: 12),
+        InkWell(
+          onTap: _showPhotoOptions,
+          child: Container(
+            height: 80,
+            decoration: BoxDecoration(
+              color: AppTheme.surfaceLight,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: AppTheme.warning.withOpacity(0.3)),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.add_photo_alternate, color: AppTheme.warning, size: 28),
+                const SizedBox(width: 12),
+                Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: const [
+                    Text('Add Face Photos', style: TextStyle(color: AppTheme.textPrimary, fontWeight: FontWeight.w500)),
+                    Text('Camera • Gallery • Multiple', style: TextStyle(color: AppTheme.textHint, fontSize: 12)),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTeacherSection() {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: AppTheme.cardGradient,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: AppTheme.defaultShadow,
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: const BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [Color(0xFF00897B), Color(0xFF26A69A)],
+                    ),
+                    borderRadius: BorderRadius.only(
+                      topLeft: Radius.circular(10),
+                      topRight: Radius.circular(10),
+                      bottomLeft: Radius.circular(10),
+                      bottomRight: Radius.circular(10),
+                    ),
+                  ),
+                  child: const Icon(Icons.person, color: Colors.white, size: 14),
+                ),
+                const SizedBox(width: 10),
+                const Text(
+                  'Teacher Details',
+                  style: TextStyle(
+                    color: AppTheme.textPrimary,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            _buildTextField(_employeeIdController, 'Employee ID', Icons.badge),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRegisterButton() {
+    return SizedBox(
+      width: double.infinity,
+      height: 56,
+      child: ElevatedButton(
+        onPressed: _isLoading ? null : _register,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: AppTheme.primaryPurple,
+          foregroundColor: AppTheme.textPrimary,
+          elevation: 0,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        ),
+        child: _isLoading
+            ? const SizedBox(
+                height: 24,
+                width: 24,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2.5,
+                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                ),
+              )
+            : const Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.person_add, size: 22),
+                  SizedBox(width: 12),
+                  Text(
+                    'Create Account',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ),
+      ),
+    );
+  }
+
+  Widget _buildLoginLink() {
+    return Center(
+      child: GestureDetector(
+        onTap: () => Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const LoginScreen()),
+        ),
+        child: RichText(
+          text: TextSpan(
+            text: 'Already have an account? ',
+            style: const TextStyle(color: AppTheme.textHint),
+            children: const [
+              TextSpan(
+                text: 'Login',
+                style: TextStyle(
+                  color: AppTheme.primaryPurple,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -586,28 +1048,28 @@ class _RoleCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
-      child: Container(
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: isSelected
-              ? color.withOpacity(0.2)
-              : const Color(0xFF16213E),
-          borderRadius: BorderRadius.circular(12),
+          color: isSelected ? color.withOpacity(0.15) : AppTheme.surfaceLight,
+          borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: isSelected ? color : Colors.white12,
+            color: isSelected ? color : AppTheme.textHint.withOpacity(0.2),
             width: isSelected ? 2 : 1,
           ),
         ),
         child: Column(
           children: [
-            Icon(icon,
-                color: isSelected ? color : Colors.white38,
-                size: 32),
+            Icon(icon, color: isSelected ? color : AppTheme.textHint, size: 32),
             const SizedBox(height: 8),
-            Text(label,
-                style: TextStyle(
-                    color: isSelected ? color : Colors.white38,
-                    fontWeight: FontWeight.bold)),
+            Text(
+              label,
+              style: TextStyle(
+                color: isSelected ? color : AppTheme.textHint,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           ],
         ),
       ),
