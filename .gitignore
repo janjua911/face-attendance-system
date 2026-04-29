@@ -50,3 +50,4 @@ app.*.map.json
 # ✅ Keep gradle wrapper files (DO NOT ignore them)
 # android/gradlew
 # android/gradlew.bat
+"build/" 
